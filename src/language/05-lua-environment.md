@@ -51,7 +51,7 @@ On top of the sandbox, the runtime installs Engine globals in every section VM, 
 - `call`, `jump`, `fanout`, and `list_from_section`
 - `tasks`
 
-Four more appear only when they apply. `ui` is present when the Host supplies a Host-state snapshot. `item` is present inside a fanout arm, one of the concurrent runs that `fanout` starts ([Inside an arm](14-fanout.md#inside-an-arm)). A declared capability can define globals of its own, such as the `input` table that `promptforge/user-input` defines ([Asking the operator with input.ask](#asking-the-operator-with-inputask)). And every declared model role label and every tool slot alias becomes a bare global of its own. None of those ever replaces an Engine global or a sandbox library global: a label or alias that names one fails the parse ([Reserved names for aliases and role labels](02-file-structure.md#reserved-names-for-aliases-and-role-labels)), and a capability global that names one fails the run before it does anything. This chapter teaches `var`, `sys`, `ui`, `log`, and `input`; each of the others is taught in its own chapter.
+Four more appear only when they apply. `ui` is present when the Host supplies a Host-state snapshot. `item` is present inside a fanout arm, one of the concurrent runs that `fanout` starts ([Inside an arm](14-fanout.md#inside-an-arm)). A declared Plugin can define globals of its own, such as the `input` table that `promptforge/user-input` defines ([Asking the operator with input.ask](#asking-the-operator-with-inputask)). And every declared model role label and every tool slot alias becomes a bare global of its own. None of those ever replaces an Engine global or a sandbox library global: a label or alias that names one fails the parse ([Reserved names for aliases and role labels](02-file-structure.md#reserved-names-for-aliases-and-role-labels)), and a Plugin global that names one fails the run before it does anything. This chapter teaches `var`, `sys`, `ui`, `log`, and `input`; each of the others is taught in its own chapter.
 
 ### Blocks, sections, and section VMs
 
@@ -693,14 +693,14 @@ lua log cumulative byte budget exceeded
 
 ## Asking the operator with input.ask
 
-The operator is the person the Host puts in front of the run, answering its questions. A prompt asks the operator for text through the `promptforge/user-input` capability. Declare it in the frontmatter, and every section can call `input.ask()`, which waits for the operator's next message:
+The operator is the person the Host puts in front of the run, answering its questions. A prompt asks the operator for text through the `promptforge/user-input` Plugin. Declare it in the frontmatter, and every section can call `input.ask()`, which waits for the operator's next message:
 
 ````markdown
 ---
 name: ask-operator
 description: Asks the operator for a topic
 promptforge: 0
-capabilities:
+plugins:
   - promptforge/user-input
 ---
 
@@ -720,13 +720,13 @@ return 'Topic: ' .. text
 Topic: lighthouses
 ````
 
-### Declaring the capability
+### Declaring the Plugin
 
-The `input` table exists only in a prompt that declares `promptforge/user-input` ([Declaring capabilities](12-tools.md#declaring-capabilities)). Without the declaration there is no `input` global, and calling `input.ask()` fails with Lua's own error `attempt to index a nil value (global 'input')`.
+The `input` table exists only in a prompt that declares `promptforge/user-input` ([Declaring Plugins](12-tools.md#declaring-plugins)). Without the declaration there is no `input` global, and calling `input.ask()` fails with Lua's own error `attempt to index a nil value (global 'input')`.
 
-Asking needs an input broker: the part of the Host that carries a question to a person and brings the reply back. The capability reads it as the service `promptforge/input-broker`. A chat window has one. A batch or evaluation Host, with nobody to ask, has none. How the prompt declares the capability decides what happens on a Host without one.
+Asking needs an input broker: the part of the Host that carries a question to a person and brings the reply back. The Plugin reads it as the service `promptforge/input-broker`. A chat window has one. A batch or evaluation Host, with nobody to ask, has none. How the prompt declares the Plugin decides what happens on a Host without one.
 
-A plain entry, as in the prompt above, declares the capability required. On a Host with no input broker, prepare refuses the run before it starts, with run error kind `RequirementsUnmet` ([When a run cannot start](04-how-a-prompt-runs.md#when-a-run-cannot-start)) and this requirements notice, which names the missing service by its id:
+A plain entry, as in the prompt above, declares the Plugin required. On a Host with no input broker, prepare refuses the run before it starts, with run error kind `RequirementsUnmet` ([When a run cannot start](04-how-a-prompt-runs.md#when-a-run-cannot-start)) and this requirements notice, which names the missing service by its id:
 
 ````text
 the environment cannot satisfy this prompt:
@@ -736,21 +736,21 @@ the environment cannot satisfy this prompt:
 An entry with `optional: true` always runs. On a Host with no input broker the prompt still gets `input`, and each ask answers with a fixed sentence instead of the operator's text:
 
 ````yaml
-capabilities:
+plugins:
   - ref: promptforge/user-input
     optional: true
 ````
 
 ### Checking for an operator
 
-`input.connected()` returns `true` when the Host has an input broker and `false` when it does not. The answer is fixed when the run starts and never changes, and reading it asks the Harness for nothing. A prompt that declares the capability optional can check it in its first section and stop or carry on:
+`input.connected()` returns `true` when the Host has an input broker and `false` when it does not. The answer is fixed when the run starts and never changes, and reading it asks the Harness for nothing. A prompt that declares the Plugin optional can check it in its first section and stop or carry on:
 
 ````markdown
 ---
 name: topic-or-default
 description: Asks for a topic when someone is there to answer
 promptforge: 0
-capabilities:
+plugins:
   - ref: promptforge/user-input
     optional: true
 ---
@@ -783,25 +783,25 @@ That is a normal return, not an error: the section keeps running. `available` is
 - The section VM's state survives the wait. A local set before the call, such as `local before = 41`, still holds `41` after it, however long the operator takes.
 - The wait pauses only the calling chain. The rest of the run keeps going while it waits.
 - A task started with `tasks.spawn` that waits in `input.ask()` stays live while other chains keep running, and its status reads `blocked` `tool_call` until its answer arrives ([Checking on tasks](15-tasks.md#checking-on-tasks)). It ends only after its own answer arrives or the chain that started it ends or cancels it.
-- Each `input.ask()` is one call to the capability's ask tool, whose tool path is `promptforge/user-input/ask`. It reports like any script tool call, with a trusted `tool_result` whose `alias` is that tool path and whose `content` is the operator's text. The Host decides where the question goes: a terminal, a chat window, a web form, or nowhere.
+- Each `input.ask()` is one call to the Plugin's ask tool, whose tool path is `promptforge/user-input/ask`. It reports like any script tool call, with a trusted `tool_result` whose `alias` is that tool path and whose `content` is the operator's text. The Host decides where the question goes: a terminal, a chat window, a web form, or nowhere.
 
 ### Letting the model ask
 
-Declaring the capability advertises nothing to the model. A `models.loop` conversation offers the model exactly the tools the prompt adds, so unless the prompt opts in, only Lua asks the operator. To let the model ask as well, bind the ask tool under an alias in `tools:` ([Tool slots and Tool objects](12-tools.md#tool-slots-and-tool-objects)):
+Declaring the Plugin advertises nothing to the model. A `models.loop` conversation offers the model exactly the tools the prompt adds, so unless the prompt opts in, only Lua asks the operator. To let the model ask as well, bind the ask tool under an alias in `tools:` ([Tool slots and Tool objects](12-tools.md#tool-slots-and-tool-objects)):
 
 ````yaml
-capabilities:
+plugins:
   - promptforge/user-input
 tools:
   ask: promptforge/user-input/ask
 ````
 
-Then put the alias in scope with `tools.add('ask')` for one section, or `tools.always('ask')` for every section ([Advertising tools to the model](12-tools.md#advertising-tools-to-the-model)). The model calls `ask` with no arguments and reads the operator's next message as the tool's result, in plain text. A tool slot requires its capability, so the slot needs the required declaration shown above: declaring `promptforge/user-input` with `optional: true` beside the slot fails the parse ([Tool slots and Tool objects](12-tools.md#tool-slots-and-tool-objects)). When the Host has no broker, the Harness refuses the required declaration before the run starts.
+Then put the alias in scope with `tools.add('ask')` for one section, or `tools.always('ask')` for every section ([Advertising tools to the model](12-tools.md#advertising-tools-to-the-model)). The model calls `ask` with no arguments and reads the operator's next message as the tool's result, in plain text. A tool slot requires its Plugin, so the slot needs the required declaration shown above: declaring `promptforge/user-input` with `optional: true` beside the slot fails the parse ([Tool slots and Tool objects](12-tools.md#tool-slots-and-tool-objects)). When the Host has no broker, the Harness refuses the required declaration before the run starts.
 
-Choose any alias except `input`. A tool alias or model role label named `input` collides with the capability's `input` global, and the run fails before it does anything, with run error kind `Lua` and this message:
+Choose any alias except `input`. A tool alias or model role label named `input` collides with the Plugin's `input` global, and the run fails before it does anything, with run error kind `Lua` and this message:
 
 ````text
-capability `promptforge/user-input`: its prelude defines the global `input`, which the prompt's frontmatter binds as a tool or model alias
+Plugin `promptforge/user-input`: its prelude defines the global `input`, which the prompt's frontmatter binds as a tool or model alias
 ````
 
 ### When an ask fails or is cancelled
@@ -1031,7 +1031,7 @@ Every section, the H1 pass, and every fanout arm gets its own fresh section VM (
 5. `jump` and `list_from_section`.
 6. The suspending calls.
 7. `models.loop`.
-8. The globals of each declared capability, such as `input`, in declaration order. Each capability supplies them as a prelude, a piece of Lua that only defines tables and functions.
+8. The globals of each declared Plugin, such as `input`, in declaration order. Each Plugin supplies them as a prelude, a piece of Lua that only defines tables and functions.
 9. The shared library load.
 10. The store's suspending calls.
 11. The declared alias globals.

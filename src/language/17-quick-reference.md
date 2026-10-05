@@ -8,14 +8,14 @@ Every frontmatter key and value rule, with top-level keys first and nested keys 
 
 | Key | Value | Default | Taught in |
 |---|---|---|---|
-| Top-level key set | `name`, `description`, `promptforge`, `max_tool_iterations`, `input`, `output`, `capabilities`, `tools`, `args`, `models` | only `name` and `description` required | [Prompt File Structure](02-file-structure.md#frontmatter-rules-and-errors) |
+| Top-level key set | `name`, `description`, `promptforge`, `max_tool_iterations`, `input`, `output`, `plugins`, `tools`, `args`, `models` | only `name` and `description` required | [Prompt File Structure](02-file-structure.md#frontmatter-rules-and-errors) |
 | `name` | string, kept as written | none, required | [Prompt File Structure](02-file-structure.md#name-and-description) |
 | `description` | one-line string, kept as written | none, required | [Prompt File Structure](02-file-structure.md#name-and-description) |
 | `promptforge` | `0` | none, needed to run | [Prompt File Structure](02-file-structure.md#the-promptforge-version) |
 | `max_tool_iterations` | whole number `1` to `1000` | `24` per `models.loop` call, or the Harness's default | [Conversations](11-conversations.md#the-round-cap) |
 | `input` | map of `path` and `description` | no input file | [Prompt File Structure](02-file-structure.md#input-and-output-files) |
 | `output` | map of `path` and `description` | no output file | [Prompt File Structure](02-file-structure.md#input-and-output-files) |
-| `capabilities` | list of capability entries | no capabilities | [Tools](12-tools.md#declaring-capabilities) |
+| `plugins` | list of Plugin entries | no Plugins | [Tools](12-tools.md#declaring-plugins) |
 | `tools` | map of alias to tool path | no tool slots | [Tools](12-tools.md#tool-slots-and-tool-objects) |
 | `args` | map of arg name to arg declaration | implicit `prose` arg | [Arguments](06-arguments.md#arg-declarations) |
 | `models` | map of role label to role declaration | no model roles | [Models](10-models.md#declaring-roles) |
@@ -24,10 +24,6 @@ Every frontmatter key and value rule, with top-level keys first and nested keys 
 | `args.{name}.description` | string | no description | [Arguments](06-arguments.md#arg-declarations) |
 | `args.{name}.optional` | boolean | `false` | [Arguments](06-arguments.md#arg-declarations) |
 | `args.{name}.type` | `string`, `boolean`, `integer`, or `number` | none, required | [Arguments](06-arguments.md#arg-declarations) |
-| `capabilities` entry as a string | capability id `namespace/pack`, such as `promptforge/web` | required, no config | [Tools](12-tools.md#capability-ids-and-tool-paths) |
-| `capabilities` entry `config` | any YAML value | no config | [Tools](12-tools.md#declaring-capabilities) |
-| `capabilities` entry `optional` | boolean | `false` | [Tools](12-tools.md#declaring-capabilities) |
-| `capabilities` entry `ref` | capability id | none, required in the map form | [Tools](12-tools.md#declaring-capabilities) |
 | Implicit `prose` arg | optional `string` arg `prose`, described as `Freeform input for this prompt` | used when `args` is absent | [Arguments](06-arguments.md#prose-input-and-structured-input) |
 | `input.description` | string | none, required | [Prompt File Structure](02-file-structure.md#input-and-output-files) |
 | `input.path` | store filename, such as `paper.md` | none, required | [Prompt File Structure](02-file-structure.md#input-and-output-files) |
@@ -45,8 +41,12 @@ Every frontmatter key and value rule, with top-level keys first and nested keys 
 | Name grammar for aliases, role labels, and arg names | `[A-Za-z][A-Za-z0-9_-]{0,63}` | none | [Prompt File Structure](02-file-structure.md#names-for-aliases-roles-and-args) |
 | `output.description` | string | none, required | [Prompt File Structure](02-file-structure.md#input-and-output-files) |
 | `output.path` | store filename, such as `report.md` | none, required | [Prompt File Structure](02-file-structure.md#input-and-output-files) |
+| `plugins` entry as a string | Plugin id `namespace/plugin`, such as `promptforge/web` | required, no config | [Tools](12-tools.md#plugin-ids-and-tool-paths) |
+| `plugins` entry `config` | any YAML value | no config | [Tools](12-tools.md#declaring-plugins) |
+| `plugins` entry `optional` | boolean | `false` | [Tools](12-tools.md#declaring-plugins) |
+| `plugins` entry `ref` | Plugin id | none, required in the map form | [Tools](12-tools.md#declaring-plugins) |
 | Reserved names for tool aliases and role labels | no Engine global, sandbox Lua global, or Lua keyword, such as `store`, `argv`, `pairs`, or `end`, and no name under both `tools` and `models`; the chapter lists every one | none | [Prompt File Structure](02-file-structure.md#reserved-names-for-aliases-and-role-labels) |
-| Tool path in `tools.{alias}` | `namespace/pack/name`, such as `promptforge/web/fetch` | none | [Tools](12-tools.md#capability-ids-and-tool-paths) |
+| Tool path in `tools.{alias}` | `namespace/plugin/name`, such as `promptforge/web/fetch` | none | [Tools](12-tools.md#plugin-ids-and-tool-paths) |
 | `tools.{alias}` | tool path string | none | [Tools](12-tools.md#tool-slots-and-tool-objects) |
 
 ## Lua globals and members
@@ -204,11 +204,11 @@ For each tool and argument, Form is what the model sends and Returns is the text
 
 ### Web tools
 
-For each tool and argument, Form is what the model sends and Returns is the text the model gets back; the `promptforge/web` row is the capability line that makes the tools available.
+For each tool and argument, Form is what the model sends and Returns is the text the model gets back; the `promptforge/web` row is the Plugin line that makes the tools available.
 
 | Name | Form | Returns | Taught in |
 |---|---|---|---|
-| `promptforge/web` | `capabilities: [promptforge/web]` | The tool paths `promptforge/web/fetch` and `promptforge/web/search` | [Web Fetch and Search](13-web-fetch-and-search.md#the-web-capability) |
+| `promptforge/web` | `plugins: [promptforge/web]` | The tool paths `promptforge/web/fetch` and `promptforge/web/search` | [Web Fetch and Search](13-web-fetch-and-search.md#the-web-plugin) |
 | `promptforge/web/fetch` | `{"url": "https://example.com/"}` | A `url:`, `truncated:`, `extraction:` header, a blank line, then the content, in the untrusted envelope | [Web Fetch and Search](13-web-fetch-and-search.md#calling-the-fetch-tool) |
 | `promptforge/web/fetch` `max_chars` | `"max_chars": 5000`, optional | At most that many characters, 1 to the policy's limit (40,000 by default); the limit when omitted | [Web Fetch and Search](13-web-fetch-and-search.md#length-and-size-limits) |
 | `promptforge/web/fetch` `raw` | `"raw": true`, optional | The whole HTML page as markdown, with `extraction: raw-html`; `false` when omitted | [Web Fetch and Search](13-web-fetch-and-search.md#what-a-fetch-returns) |
@@ -225,11 +225,11 @@ For each tool and argument, Form is what the model sends and Returns is the text
 
 ### Operator input
 
-The `promptforge/user-input` row is the capability line that defines the rest. The two `input` rows are Lua calls, and the ask tool row is what a model sends when the prompt lets it ask.
+The `promptforge/user-input` row is the Plugin line that defines the rest. The two `input` rows are Lua calls, and the ask tool row is what a model sends when the prompt lets it ask.
 
 | Name | Form | Returns | Taught in |
 |---|---|---|---|
-| `promptforge/user-input` | `capabilities: [promptforge/user-input]` | The `input` global and the tool path `promptforge/user-input/ask`; required, the run is refused when the Host has nobody to ask | [The Lua Environment](05-lua-environment.md#declaring-the-capability) |
+| `promptforge/user-input` | `plugins: [promptforge/user-input]` | The `input` global and the tool path `promptforge/user-input/ask`; required, the run is refused when the Host has nobody to ask | [The Lua Environment](05-lua-environment.md#declaring-the-plugin) |
 | `input.ask` | `local text, available = input.ask()` in Lua | the operator's next message and `true`, or the fixed fallback sentence and `false` | [The Lua Environment](05-lua-environment.md#asking-the-operator-with-inputask) |
 | `input.connected` | `input.connected()` in Lua | `true` when the Host has someone to ask; fixed for the whole run | [The Lua Environment](05-lua-environment.md#checking-for-an-operator) |
 | `promptforge/user-input/ask` | `{}` | The operator's next message, trusted; offered to a model only through a `tools:` alias | [The Lua Environment](05-lua-environment.md#letting-the-model-ask) |
@@ -374,7 +374,7 @@ Parse error kinds classify a file that fails to parse, run error kinds classify 
 | `Lua` | An uncaught Lua failure in a walked section, `call` chain, task, fanout arm, or the shared library load, including a failed substitution, running out of memory, and a block that returns a table; a task error in any chain; a caught `lua`, `internal`, `out_of_scope_tool`, `unbound_tool`, or task error value raised again after another suspending call | The Lua error's own text | [Limits and Errors](16-limits-and-errors.md#how-a-failed-run-is-classified) |
 | `Parse` | The file fails with any parse error kind, or has no `promptforge:` key | The parse error's own message, with its location beside it when known | [Limits and Errors](16-limits-and-errors.md#how-a-failed-run-is-classified) |
 | `Quota` | The log event quota or the log byte quota runs out and the error goes uncaught | Nothing, as in `lua log event quota exceeded` or `lua log byte quota exceeded` | [Limits and Errors](16-limits-and-errors.md#how-a-failed-run-is-classified) |
-| `RequirementsUnmet` | Prepare finds a required capability missing, two declared capabilities in conflict, or a model role requirement unmet, or an ordinary Lua error goes uncaught in the H1 pass | Each unmet requirement on its own line, or the Lua error text | [Limits and Errors](16-limits-and-errors.md#how-a-failed-run-is-classified) |
+| `RequirementsUnmet` | Prepare finds a required Plugin missing, two declared Plugins in conflict, or a model role requirement unmet, or an ordinary Lua error goes uncaught in the H1 pass | Each unmet requirement on its own line, or the Lua error text | [Limits and Errors](16-limits-and-errors.md#how-a-failed-run-is-classified) |
 | Retryable failures | `Completion` failures from a transport failure (a receive timeout included), a malformed or oversized reply, a rate limit or an overloaded backend, or a backend status of 500 or higher; nothing reruns a failed run automatically | The backend status, when there is one | [Limits and Errors](16-limits-and-errors.md#model-call-and-environment-failures) |
 | `Vfs` | An uncaught `store` failure, a caught one raised again, a run whose handle declares no store, or the Host's store backend failing outside any store call | The store failure's own text, as in `file not found in store: {path}` or `store operation failed` | [Limits and Errors](16-limits-and-errors.md#how-a-failed-run-is-classified) |
 | `Tool` | A tool fails, the model calls a tool outside the round's scope, a script calls an alias not bound in the run, or `models.loop` reaches its round cap, and the error goes uncaught | The tool's failure text, the requested name and the aliases in scope or bound, or nothing, as in `tool-call loop did not converge` | [Limits and Errors](16-limits-and-errors.md#how-a-failed-run-is-classified) |

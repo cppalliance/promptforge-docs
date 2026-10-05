@@ -97,7 +97,7 @@ return 'hello'
 hello
 ````
 
-The fence's `return` value becomes the section's result, and because this section's return ends the run, it is also the run's result text. The prompt declares no model, no tools, and no capabilities, and needs none: a Lua block that returns a string does all the work itself. A literal `return` asks the Harness for no work at all, so the run never waits on anything outside the prompt. Tools that Lua never calls change nothing either: with [tool slots](#the-prompt-the-host-and-the-harness) filled but never called, a block of `return 'plain'` still ends the run with `plain`.
+The fence's `return` value becomes the section's result, and because this section's return ends the run, it is also the run's result text. The prompt declares no model, no tools, and no Plugins, and needs none: a Lua block that returns a string does all the work itself. A literal `return` asks the Harness for no work at all, so the run never waits on anything outside the prompt. Tools that Lua never calls change nothing either: with [tool slots](#the-prompt-the-host-and-the-harness) filled but never called, a block of `return 'plain'` still ends the run with `plain`.
 
 A prompt can also return the argument string the run received, which Lua reads as `args` ([input basics](06-arguments.md#input-basics)). This prompt ends with whatever text it was given:
 
@@ -487,14 +487,14 @@ Three layers take part in every run. The Engine parses the prompt, steps the run
 
 Four optional frontmatter keys are the contract keys, the prompt's contract with the Harness and the Host:
 
-- `capabilities:` names the capabilities the prompt needs from the Harness ([declaring capabilities](12-tools.md#declaring-capabilities)).
+- `plugins:` names the Plugins the prompt needs from the Harness ([declaring Plugins](12-tools.md#declaring-plugins)).
 - `tools:` binds tool slots, each an alias mapped to a tool path ([tool slots and Tool objects](12-tools.md#tool-slots-and-tool-objects)).
 - `models:` declares model roles ([declaring roles](10-models.md#declaring-roles)).
 - `args:` types the prompt's arguments ([arg declarations](06-arguments.md#arg-declarations)).
 
 The parser checks only the shape of these keys. The Harness satisfies them at prepare, the step before the run starts ([what a run does](04-how-a-prompt-runs.md#what-a-run-does)). A declaration the Harness cannot satisfy fails the run with the run error kind `RequirementsUnmet` before any section runs ([how a failed run is classified](16-limits-and-errors.md#how-a-failed-run-is-classified)), and prepare's refusal text is the requirements notice ([when a run cannot start](04-how-a-prompt-runs.md#when-a-run-cannot-start)).
 
-A prompt that declares no capabilities, tools, or model roles has no requirements for the Harness to meet before the run. It runs on its Lua sections alone, with no model, no tools, and no real files behind it:
+A prompt that declares no Plugins, tools, or model roles has no requirements for the Harness to meet before the run. It runs on its Lua sections alone, with no model, no tools, and no real files behind it:
 
 ````markdown
 ---
@@ -508,12 +508,12 @@ promptforge: 0
 ## Only
 
 ```lua
-return 'no capabilities'
+return 'no Plugins'
 ```
 ````
 
 ````text
-no capabilities
+no Plugins
 ````
 
 When a prompt does declare model roles and tool slots, the frontmatter decides what is bound. Before the run begins, the Harness fills every declared model role with a concrete model and every tool slot with the tool at its declared tool path ([filling tool slots and model roles](04-how-a-prompt-runs.md#filling-tool-slots-and-model-roles)). For the `writer: {}` role in the prompts above, prepare fills `writer` with the Host's current model and reports the declaration satisfied, and a section's `models.use('writer')` then runs its rounds under that model.
@@ -564,7 +564,7 @@ All four contract keys can sit together in one frontmatter block, alongside `nam
 name: research
 description: Searches public and private sources
 promptforge: 0
-capabilities:
+plugins:
   - promptforge/web
   - ref: io.github.corp/mcp
     optional: true
@@ -580,7 +580,7 @@ models:
 ---
 ````
 
-- `capabilities:` lists `promptforge/web` as a required capability id ([the web capability](13-web-fetch-and-search.md#the-web-capability)), then a mapping that names `io.github.corp/mcp` with `ref:`, marks it `optional: true`, and gives it its own `config:`.
+- `plugins:` lists `promptforge/web` as a required Plugin id ([the web Plugin](13-web-fetch-and-search.md#the-web-plugin)), then a mapping that names `io.github.corp/mcp` with `ref:`, marks it `optional: true`, and gives it its own `config:`.
 - `tools:` maps two aliases, `search` and `fetch`, to tool paths, and the model calls the tools as `search` and `fetch`.
 - `args:` declares `use_mcp`, a `boolean` argument with a default of `true` and a description.
 - `models:` declares two roles, `analyst` and `triage`, each with `keywords` and a `description`, and `analyst` also sets `min_context`.

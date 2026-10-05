@@ -1,17 +1,17 @@
 # Tools
 
-Tools let a prompt reach past the model's own text: in the middle of a conversation the model can search the web or fetch a page, your Lua code can call the same tools directly, and any Lua function can become a tool the model calls. This chapter shows how to declare the capabilities a prompt needs, bind their tools under short aliases, choose which tools the model sees in each section, call tools from Lua, read trusted and untrusted output, handle failures, count calls, and write local tools, so your prompts can research, check their work, and act.
+Tools let a prompt reach past the model's own text: in the middle of a conversation the model can search the web or fetch a page, your Lua code can call the same tools directly, and any Lua function can become a tool the model calls. This chapter shows how to declare the Plugins a prompt needs, bind their tools under short aliases, choose which tools the model sees in each section, call tools from Lua, read trusted and untrusted output, handle failures, count calls, and write local tools, so your prompts can research, check their work, and act.
 
 ## Tools at a glance
 
-Every tool comes from the Harness. The Host registers capabilities with the Harness, each supplying a set of tools under an id such as `promptforge/web`, and a prompt declares the capabilities it uses and binds the tools it wants from them. The smallest tool prompt declares one capability, binds one tool, and calls it from Lua:
+Every tool comes from the Harness. The Host registers Plugins with the Harness, each supplying a set of tools under an id such as `promptforge/web`, and a prompt declares the Plugins it uses and binds the tools it wants from them. The smallest tool prompt declares one Plugin, binds one tool, and calls it from Lua:
 
 ````markdown
 ---
 name: page-fetcher
 description: Fetches the page named in the argument string
 promptforge: 0
-capabilities:
+plugins:
   - promptforge/web
 tools:
   fetch: promptforge/web/fetch
@@ -26,9 +26,9 @@ return tools.call('fetch', { url = args })
 ```
 ````
 
-`capabilities:` lists the capabilities the prompt uses, here `promptforge/web`, the first-party capability that supplies the tools `promptforge/web/fetch` and `promptforge/web/search`. Each declared capability is activated at [prepare](04-how-a-prompt-runs.md#capability-activation), before any Lua runs, and the run's tool catalog, the set of tools the prompt can bind, is built from exactly the declared capabilities. A Harness tool reaches a run only this way.
+`plugins:` lists the Plugins the prompt uses, here `promptforge/web`, the first-party Plugin that supplies the tools `promptforge/web/fetch` and `promptforge/web/search`. Each declared Plugin is activated at [prepare](04-how-a-prompt-runs.md#plugin-activation), before any Lua runs, and the run's tool catalog, the set of tools the prompt can bind, is built from exactly the declared Plugins. A Harness tool reaches a run only this way.
 
-`tools:` binds tool slots. Each entry is written `alias: namespace/pack/name`, a prompt-local alias mapped to one exact tool path, so `fetch` here is an alias for `promptforge/web/fetch`. Each alias then exists as a Lua global and as a name `tools.call` accepts. A prompt without a `tools:` key has no tool slots.
+`tools:` binds tool slots. Each entry is written `alias: namespace/plugin/name`, a prompt-local alias mapped to one exact tool path, so `fetch` here is an alias for `promptforge/web/fetch`. Each alias then exists as a Lua global and as a name `tools.call` accepts. A prompt without a `tools:` key has no tool slots.
 
 `tools.call(alias, args)` calls a bound tool from Lua: the alias names the tool, the Lua table becomes the tool's JSON arguments, and the call returns the tool's result. Here the table's `url` field is the run's argument string, [`args`](06-arguments.md#input-basics), and the section returns the tool's result as the run result.
 
@@ -39,7 +39,7 @@ Binding a tool does not show it to the model. A bound tool stays out of the mode
 name: researcher
 description: Answers a question from web sources
 promptforge: 0
-capabilities:
+plugins:
   - promptforge/web
 tools:
   search: promptforge/web/search
@@ -80,56 +80,56 @@ local out = tools.call('grab', { value = 'hi' })
 
 Every tool operation lives in one Lua table, `tools`, the way model operations live in `models`. Besides `tools.add`, `tools.call`, and `tools.add_local`, the table holds `tools.always`, one member for letting the model start tasks, named under [Advertising tools to the model](#advertising-tools-to-the-model), and `tools.calls` once the section has made its first tool call.
 
-Everything about tools lives in the prompt file. There are no command-line flags or config files for them, and credentials and server settings come from the Host. Without a `capabilities:` key a prompt has no capabilities, without a `tools:` key it has no tool slots, and a section offers the model no tools until the prompt puts some in scope.
+Everything about tools lives in the prompt file. There are no command-line flags or config files for them, and credentials and server settings come from the Host. Without a `plugins:` key a prompt has no Plugins, without a `tools:` key it has no tool slots, and a section offers the model no tools until the prompt puts some in scope.
 
-## Declaring capabilities
+## Declaring Plugins
 
-`capabilities:` is a YAML list in the [frontmatter](02-file-structure.md#frontmatter-rules-and-errors), with one declaration per entry, kept in the order written. Leaving the key out means the prompt uses no capabilities. Each entry is a plain capability id or a map:
+`plugins:` is a YAML list in the [frontmatter](02-file-structure.md#frontmatter-rules-and-errors), with one declaration per entry, kept in the order written. Leaving the key out means the prompt uses no Plugins. Each entry is a plain Plugin id or a map:
 
 ````yaml
-capabilities:
+plugins:
   - promptforge/web
   - ref: io.github.corp/mcp
     optional: true
 ````
 
-A plain string entry, such as `- promptforge/web`, declares a required capability with no config. When the Harness lacks a required capability, or the capability fails to activate, prepare refuses the run before it starts with run error kind [`RequirementsUnmet`](16-limits-and-errors.md#how-a-failed-run-is-classified), and the [requirements notice](04-how-a-prompt-runs.md#when-a-run-cannot-start) names each missing capability:
+A plain string entry, such as `- promptforge/web`, declares a required Plugin with no config. When the Harness lacks a required Plugin, or the Plugin fails to activate, prepare refuses the run before it starts with run error kind [`RequirementsUnmet`](16-limits-and-errors.md#how-a-failed-run-is-classified), and the [requirements notice](04-how-a-prompt-runs.md#when-a-run-cannot-start) names each missing Plugin:
 
 ````text
 the environment cannot satisfy this prompt:
-- missing required capability: promptforge/web
+- missing required Plugin: promptforge/web
 ````
 
 The map form has three keys, and plain and map entries mix freely in one list:
 
 | Key | Value | Default |
 |---|---|---|
-| `ref` | the capability id, required | none |
+| `ref` | the Plugin id, required | none |
 | `optional` | a boolean | `false` |
 | `config` | any YAML value | no config |
 
-With `optional: true`, a capability the Harness lacks, or one that fails to activate, is skipped at prepare with a log line naming it, and the run goes ahead. The second entry above is optional, so a Harness without `io.github.corp/mcp` still runs the prompt. A tool slot requires its capability, so an optional capability cannot back one: a slot that names a tool of a capability declared `optional: true` fails the parse, as [Tool slots and Tool objects](#tool-slots-and-tool-objects) shows.
+With `optional: true`, a Plugin the Harness lacks, or one that fails to activate, is skipped at prepare with a log line naming it, and the run goes ahead. The second entry above is optional, so a Harness without `io.github.corp/mcp` still runs the prompt. A tool slot requires its Plugin, so an optional Plugin cannot back one: a slot that names a tool of a Plugin declared `optional: true` fails the parse, as [Tool slots and Tool objects](#tool-slots-and-tool-objects) shows.
 
-`config` accepts any YAML value without a shape check. When it activates, a capability receives only the run's filesystem, its cancel signal, and the services the Host provides, each named by an id such as `promptforge/input-broker`, the input broker that waits for the operator's next message on a Host with someone to ask. No shipped capability reads `config`. Credentials, server lists, and similar settings always come from the Host, never from the prompt.
+`config` accepts any YAML value without a shape check. When it activates, a Plugin receives only the run's filesystem, its cancel signal, and the services the Host provides, each named by an id such as `promptforge/input-broker`, the input broker that waits for the operator's next message on a Host with someone to ask. No shipped Plugin reads `config`. Credentials, server lists, and similar settings always come from the Host, never from the prompt.
 
-Each capability is declared once. A list that names one capability id twice fails the parse with parse error kind [`Frontmatter`](16-limits-and-errors.md#parse-error-kinds), whatever form each entry takes, and even when the two entries differ only in `optional` or `config`. The message names the id and reports no line or column:
+Each Plugin is declared once. A list that names one Plugin id twice fails the parse with parse error kind [`Frontmatter`](16-limits-and-errors.md#parse-error-kinds), whatever form each entry takes, and even when the two entries differ only in `optional` or `config`. The message names the id and reports no line or column:
 
 ````text
-invalid frontmatter: capability {id} is declared more than once under capabilities
+invalid frontmatter: Plugin {id} is declared more than once under plugins
 ````
 
 ### How declarations are matched
 
-Prepare activates capabilities in the order declared, and their tools join the run's tool catalog in that order: by declaration first, then in each capability's own order.
+Prepare activates Plugins in the order declared, and their tools join the run's tool catalog in that order: by declaration first, then in each Plugin's own order.
 
-A declared id matches the one capability the Harness installed under exactly that id. The capabilities a prompt can use are exactly the ones the Harness has registered, so an id the Harness never registered matches nothing: a required entry is reported missing, and an optional one is skipped.
+A declared id matches the one Plugin the Harness installed under exactly that id. The Plugins a prompt can use are exactly the ones the Harness has registered, so an id the Harness never registered matches nothing: a required entry is reported missing, and an optional one is skipped.
 
-A capability works against the run's own filesystem, so the files its tools read and write are the same files [the store](09-the-store.md#what-the-store-is) sees.
+A Plugin works against the run's own filesystem, so the files its tools read and write are the same files [the store](09-the-store.md#what-the-store-is) sees.
 
-A capability can name another capability as a conflict, for example when each provides a different filesystem. A prompt that declares both is refused before the run starts with `RequirementsUnmet`: neither activates, and the notice lists the pair, the earlier-declared capability first. Declare only one of the two.
+A Plugin can name another Plugin as a conflict, for example when each provides a different filesystem. A prompt that declares both is refused before the run starts with `RequirementsUnmet`: neither activates, and the notice lists the pair, the earlier-declared Plugin first. Declare only one of the two.
 
 ````text
-- conflicting capabilities: {first} and {second} cannot be activated together; declare one or the other
+- conflicting Plugins: {first} and {second} cannot be activated together; declare one or the other
 ````
 
 ### Entry errors
@@ -139,21 +139,21 @@ A malformed entry fails the parse with parse error kind [`Frontmatter`](16-limit
 - A map without `ref` fails with `` missing field `ref` ``.
 - A key written twice fails with `` duplicate field `{key}` ``, where `{key}` is `ref`, `optional`, or `config`.
 - Any other key in the map fails with `` unknown field `{key}`, expected one of `ref`, `optional`, `config` ``.
-- An entry that is neither a string nor a map fails with `` invalid type: {found}, expected a capability id string or a map with `ref`, `optional`, and `config` ``, where `{found}` names the kind of value written, such as an integer or a sequence.
+- An entry that is neither a string nor a map fails with `` invalid type: {found}, expected a Plugin id string or a map with `ref`, `optional`, and `config` ``, where `{found}` names the kind of value written, such as an integer or a sequence.
 
-## Capability ids and tool paths
+## Plugin ids and tool paths
 
-Capability ids and tool paths share one grammar of `/`-separated segments, and the segment count tells them apart: two segments name a capability, and three name a tool. A `capabilities:` entry with any other count fails the parse with an error that quotes the id.
+Plugin ids and tool paths share one grammar of `/`-separated segments, and the segment count tells them apart: two segments name a Plugin, and three name a tool. A `plugins:` entry with any other count fails the parse with an error that quotes the id.
 
 ````text
-capability id = segment "/" segment
+Plugin id     = segment "/" segment
 tool path     = segment "/" segment "/" segment
 segment       = one or more characters, each one of a-z 0-9 - _ .
 ````
 
-A capability id is written `namespace/pack`, such as `promptforge/web`, `io.github.corp/mcp`, or `acme/web-search`. The first segment is the namespace: a reverse-DNS name such as `org.rustalliance`, or the first-party `promptforge`. A dotted namespace is still one segment.
+A Plugin id is written `namespace/plugin`, such as `promptforge/web`, `io.github.corp/mcp`, or `acme/web-search`. The first segment is the namespace: a reverse-DNS name such as `org.rustalliance`, or the first-party `promptforge`. A dotted namespace is still one segment.
 
-A tool path is written `namespace/pack/name`, such as `promptforge/web/fetch`, and every `tools:` value is a tool path. The last segment is the tool's short name, `fetch` here. Dropping it always gives the id of the capability that supplies the tool, so `promptforge/web/fetch` comes from `promptforge/web`:
+A tool path is written `namespace/plugin/name`, such as `promptforge/web/fetch`, and every `tools:` value is a tool path. The last segment is the tool's short name, `fetch` here. Dropping it always gives the id of the Plugin that supplies the tool, so `promptforge/web/fetch` comes from `promptforge/web`:
 
 | Tool path | Short name | Supplied by |
 |---|---|---|
@@ -162,28 +162,28 @@ A tool path is written `namespace/pack/name`, such as `promptforge/web/fetch`, a
 | `org.rustalliance/core/search` | `search` | `org.rustalliance/core` |
 | `org.rustalliance/my-pack/v1_2.tool` | `v1_2.tool` | `org.rustalliance/my-pack` |
 
-A capability supplies only tools whose path is its own id plus one name segment, compared by whole segments: `promptforge/web` supplies `promptforge/web/fetch` but never `promptforge/other/fetch`, and `promptforge/web2/fetch` belongs to `promptforge/web2`, not to `promptforge/web`. The Harness admits a contributed tool only when its path sits under the contributing capability's id, so every tool a prompt can bind has this shape.
+A Plugin supplies only tools whose path is its own id plus one name segment, compared by whole segments: `promptforge/web` supplies `promptforge/web/fetch` but never `promptforge/other/fetch`, and `promptforge/web2/fetch` belongs to `promptforge/web2`, not to `promptforge/web`. The Harness admits a contributed tool only when its path sits under the contributing Plugin's id, so every tool a prompt can bind has this shape.
 
 ### Segment rules
 
-- Every segment has at least one character, and each character is a lowercase ASCII letter `a` to `z`, a digit `0` to `9`, `-`, `_`, or `.`. Tool path segments follow the same rules as capability id segments.
+- Every segment has at least one character, and each character is a lowercase ASCII letter `a` to `z`, a digit `0` to `9`, `-`, `_`, or `.`. Tool path segments follow the same rules as Plugin id segments.
 - A segment or a whole name has no length limit and no rule about its first or last character, so a segment may start or end with `-`, `_`, `.`, or a digit.
-- Names are kept exactly as written, with no case folding, trimming, or other normalizing, and compare byte for byte. Write every id and path in lowercase; `promptforge/web` is the only spelling of that capability.
-- `-`, `_`, and `.` are not interchangeable. The Harness looks ids up exactly, so `acme/web-search`, `acme/web_search`, and `acme/web.search` are three different capabilities.
-- A capability id has no version part. It names the one capability the Harness installed under that id.
-- By convention an organization's own capabilities live under a reverse-DNS namespace such as `org.rustalliance` or `io.github.corp`, and `promptforge` is the first-party namespace. The parser checks neither convention.
+- Names are kept exactly as written, with no case folding, trimming, or other normalizing, and compare byte for byte. Write every id and path in lowercase; `promptforge/web` is the only spelling of that Plugin.
+- `-`, `_`, and `.` are not interchangeable. The Harness looks ids up exactly, so `acme/web-search`, `acme/web_search`, and `acme/web.search` are three different Plugins.
+- A Plugin id has no version part. It names the one Plugin the Harness installed under that id.
+- By convention an organization's own Plugins live under a reverse-DNS namespace such as `org.rustalliance` or `io.github.corp`, and `promptforge` is the first-party namespace. The parser checks neither convention.
 
-A capability id or tool path prints as its segments joined with `/`, and that text reads back as the same name, so run reports and error messages show it exactly as written, the missing-capability line of the requirements notice included.
+A Plugin id or tool path prints as its segments joined with `/`, and that text reads back as the same name, so run reports and error messages show it exactly as written, the missing-Plugin line of the requirements notice included.
 
 ## Name errors
 
-A capability id or tool path that breaks the grammar fails the parse with parse error kind `Frontmatter`, located at the offending entry's line and column. The message quotes the text as written and names the broken rule.
+A Plugin id or tool path that breaks the grammar fails the parse with parse error kind `Frontmatter`, located at the offending entry's line and column. The message quotes the text as written and names the broken rule.
 
-A capability id under `capabilities:` gets one of two messages. Three otherwise valid segments give the first; every other failure gives the second, with a reason from the table below:
+A Plugin id under `plugins:` gets one of two messages. Three otherwise valid segments give the first; every other failure gives the second, with a reason from the table below:
 
 ````text
-invalid capability id `{text}`: a capability id has exactly 2 segments (namespace/pack)
-invalid capability id `{text}`: invalid global name: {reason}
+invalid Plugin id `{text}`: a Plugin id has exactly 2 segments (namespace/plugin)
+invalid Plugin id `{text}`: invalid global name: {reason}
 ````
 
 A `tools:` value that is a malformed string gets the first message below, and a value that is not a string at all, such as a map or a number, gets the second:
@@ -195,31 +195,31 @@ invalid type: {found}, expected an exact tool path string
 
 The reason depends on what is wrong and on which kind of name it is:
 
-| Problem | Reason in a capability id | Reason in a tool path |
+| Problem | Reason in a Plugin id | Reason in a tool path |
 |---|---|---|
-| One segment, four or more, or empty text | `must have exactly 2 segments (namespace/pack) or 3 (namespace/pack/name)` | `a tool id must have exactly 3 segments (namespace/pack/name)` |
-| Valid segments, but three in a capability id or two in a tool path | the first capability message above | `a tool id must have exactly 3 segments (namespace/pack/name)` |
+| One segment, four or more, or empty text | `must have exactly 2 segments (namespace/plugin) or 3 (namespace/plugin/name)` | `a tool id must have exactly 3 segments (namespace/plugin/name)` |
+| Valid segments, but three in a Plugin id or two in a tool path | the first Plugin message above | `a tool id must have exactly 3 segments (namespace/plugin/name)` |
 | An empty segment, left by a doubled, leading, or trailing `/` | `segments must not be empty` | `segments must not be empty` |
 | A control character: a tab, a newline, any byte below 0x20, or DEL | `segments must not contain a control character` | `segments may contain only lowercase ASCII letters, digits, '-', '_', '.'` |
 | An uppercase letter, a space, a non-ASCII character, or punctuation other than `-`, `_`, and `.` | `segments may contain only lowercase ASCII letters, digits, '-', '_', '.'` | `segments may contain only lowercase ASCII letters, digits, '-', '_', '.'` |
 
-Each bad name produces one message, for the first check it fails. The overall segment count comes first, then each segment from left to right, with an empty segment reported before its characters and the first bad character deciding between the control-character and character-set reasons. The exact count for the position comes last: two for a capability id, three for a tool path.
+Each bad name produces one message, for the first check it fails. The overall segment count comes first, then each segment from left to right, with an empty segment reported before its characters and the first bad character deciding between the control-character and character-set reasons. The exact count for the position comes last: two for a Plugin id, three for a tool path.
 
 ## Tool slots and Tool objects
 
-Each `tools:` entry declares a tool slot: an alias, which follows the prompt's [name grammar for aliases](02-file-structure.md#names-for-aliases-roles-and-args), bound to one tool path. The first two segments of the path name the declared capability that supplies the tool. Because each alias becomes a Lua global of its own name, an alias may not be one of the [reserved names](02-file-structure.md#reserved-names-for-aliases-and-role-labels), such as `store` or `pairs`, nor a label under `models:`.
+Each `tools:` entry declares a tool slot: an alias, which follows the prompt's [name grammar for aliases](02-file-structure.md#names-for-aliases-roles-and-args), bound to one tool path. The first two segments of the path name the declared Plugin that supplies the tool. Because each alias becomes a Lua global of its own name, an alias may not be one of the [reserved names](02-file-structure.md#reserved-names-for-aliases-and-role-labels), such as `store` or `pairs`, nor a label under `models:`.
 
-Prepare [fills each slot](04-how-a-prompt-runs.md#filling-tool-slots-and-model-roles) by exact match of its tool path against the run's tool catalog, which holds the activated capabilities' tools in declaration order. A slot whose path matches becomes a bound tool slot, and it stays bound to that same tool for the whole run. Slots are bound before any Lua runs, so Lua only chooses which bound slots the model sees, and scoping an alias that is not bound is an error.
+Prepare [fills each slot](04-how-a-prompt-runs.md#filling-tool-slots-and-model-roles) by exact match of its tool path against the run's tool catalog, which holds the activated Plugins' tools in declaration order. A slot whose path matches becomes a bound tool slot, and it stays bound to that same tool for the whole run. Slots are bound before any Lua runs, so Lua only chooses which bound slots the model sees, and scoping an alias that is not bound is an error.
 
-Every capability named by a slot's first two segments belongs in `capabilities:`. If that capability contributed no tools to the catalog, prepare refuses the run with `RequirementsUnmet` and the line `- missing required capability: {id}`, listed once however many slots name it. So `fetch: promptforge/web/fetch` needs `promptforge/web` to have contributed tools, and when it contributed none, the slot is reported under `promptforge/web`.
+Every Plugin named by a slot's first two segments belongs in `plugins:`. If that Plugin contributed no tools to the catalog, prepare refuses the run with `RequirementsUnmet` and the line `- missing required Plugin: {id}`, listed once however many slots name it. So `fetch: promptforge/web/fetch` needs `promptforge/web` to have contributed tools, and when it contributed none, the slot is reported under `promptforge/web`.
 
-A tool slot requires its capability, so an optional capability cannot back one. A slot whose capability is declared `optional: true` fails the parse with parse error kind `Frontmatter` and this message, which reports no line or column. When several slots do, the one whose alias sorts first is named:
+A tool slot requires its Plugin, so an optional Plugin cannot back one. A slot whose Plugin is declared `optional: true` fails the parse with parse error kind `Frontmatter` and this message, which reports no line or column. When several slots do, the one whose alias sorts first is named:
 
 ````text
-invalid frontmatter: tool alias '{alias}' names {path}, whose capability {id} is declared optional; a tool slot requires its capability
+invalid frontmatter: tool alias '{alias}' names {path}, whose Plugin {id} is declared optional; a tool slot requires its Plugin
 ````
 
-In all, a required capability is reported missing, and the run refused before it starts, in three cases: the Harness lacks it, it fails to activate, or a slot names it but it contributed no tools. Capability and slot problems at prepare are always reported as `RequirementsUnmet`.
+In all, a required Plugin is reported missing, and the run refused before it starts, in three cases: the Harness lacks it, it fails to activate, or a slot names it but it contributed no tools. Plugin and slot problems at prepare are always reported as `RequirementsUnmet`.
 
 Each bound slot records its alias, the tool's description, and the tool path, whose last segment is the tool's short name. The catalog finds a tool only by its full tool path, and only aliases declared under `tools:` are bound. Every tool in the catalog has a short name, a description, and a JSON Schema for its arguments. The description comes from the Harness, the model reads it when deciding whether to call the tool, and the Engine sets no length or sentence rule on it.
 
@@ -242,7 +242,7 @@ Each bound slot is also a bare Lua global named by its alias, holding a Tool obj
 name: tool-inspector
 description: Reads the fields of a Tool object
 promptforge: 0
-capabilities:
+plugins:
   - promptforge/web
 tools:
   page: promptforge/web/fetch
@@ -290,7 +290,7 @@ The same `tools` table is present in every section VM, the H1 body and shared co
 name: shared-helper
 description: Uses an alias global from a shared function
 promptforge: 0
-capabilities:
+plugins:
   - promptforge/web
 tools:
   page: promptforge/web/fetch
@@ -322,7 +322,7 @@ A section's scope is the set of tools the model is offered in that section. Two 
 name: two-step-research
 description: Finds sources in one section and writes in the next
 promptforge: 0
-capabilities:
+plugins:
   - promptforge/web
 tools:
   search: promptforge/web/search
@@ -426,7 +426,7 @@ tools.always alias "{alias}" is not a bound tool slot
 tools.add alias "{alias}" is not a bound tool slot
 ````
 
-Uncaught, these fail the run wherever the call is made. A slot can stay unbound even though prepare reported nothing: when its capability contributed tools but not the one the path names, the slot stays unbound without a report. Offering or calling that alias then fails at run time with an error naming it, such as `tools.add alias "search" is not a bound tool slot`.
+Uncaught, these fail the run wherever the call is made. A slot can stay unbound even though prepare reported nothing: when its Plugin contributed tools but not the one the path names, the slot stays unbound without a report. Offering or calling that alias then fails at run time with an error naming it, such as `tools.add alias "search" is not a bound tool slot`.
 
 `tools.add` is all-or-nothing: it checks every entry before it records any, so one bad alias in an array scopes none of them. The error can be caught with `pcall`. After a caught error nothing was recorded and the tool's description is unchanged, and a later valid `tools.add` still takes effect.
 
@@ -595,7 +595,7 @@ Uncaught, these failures end the run with run error kind [`Tool`](16-limits-and-
 name: sourced-answer
 description: Answers only when the model read at least one page
 promptforge: 0
-capabilities:
+plugins:
   - promptforge/web
 tools:
   search: promptforge/web/search
@@ -643,7 +643,7 @@ The end of the message tells a real tool from a typo:
 
 ## Local tools
 
-`tools.add_local` makes a tool out of a Lua function. A local tool needs nothing in the frontmatter, no `tools:` or `capabilities:` entry, and the Engine answers its calls itself. This prompt gives the model a note-taking tool that writes to the store:
+`tools.add_local` makes a tool out of a Lua function. A local tool needs nothing in the frontmatter, no `tools:` or `plugins:` entry, and the Engine answers its calls itself. This prompt gives the model a note-taking tool that writes to the store:
 
 ````markdown
 ---

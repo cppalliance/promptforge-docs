@@ -229,7 +229,7 @@ Common mistakes land in predictable kinds: malformed YAML and an out-of-range `m
 invalid frontmatter: {message}
 ````
 
-A value the contract rejects, such as a malformed capability id, an out-of-range `max_tool_iterations`, or a tool alias that is a [reserved name](02-file-structure.md#reserved-names-for-aliases-and-role-labels), gives that key's own message.
+A value the contract rejects, such as a malformed Plugin id, an out-of-range `max_tool_iterations`, or a tool alias that is a [reserved name](02-file-structure.md#reserved-names-for-aliases-and-role-labels), gives that key's own message.
 
 ### Structure
 
@@ -285,7 +285,7 @@ A parse failure comes with a location when the parser can point at the problem. 
 
 ### Frontmatter failures
 
-A frontmatter failure, whether the YAML is invalid or the contract rejects a value, gives a 1-based line and a 1-based column. For a capability entry on line 5 whose value is not a capability id, the failure reports line 5 and column 5, where the value starts after the `  - ` list marker. The exceptions are the checks that span entries, which give neither a line nor a column: a name declared both under `tools:` and under `models:`, a capability declared twice, and a tool slot whose capability is declared optional.
+A frontmatter failure, whether the YAML is invalid or the contract rejects a value, gives a 1-based line and a 1-based column. For a Plugin entry on line 5 whose value is not a Plugin id, the failure reports line 5 and column 5, where the value starts after the `  - ` list marker. The exceptions are the checks that span entries, which give neither a line nor a column: a name declared both under `tools:` and under `models:`, a Plugin declared twice, and a tool slot whose Plugin is declared optional.
 
 A frontmatter failure has no prompt name, because the name comes from the frontmatter itself. Its location path is the placeholder `<prompt>`, and the Host may label the failure with its own name for the file instead.
 
@@ -422,7 +422,7 @@ Nothing reruns a failed run automatically. [Model call and environment failures]
 
 - `Parse`: every parse failure, a Lua syntax error included, is reported as a failed run with run error kind `Parse`, while its parse error kind says which part of the file failed ([Parse error kinds](#parse-error-kinds)). A file with no `promptforge:` key also ends its run on the first step with `Parse`.
 - `Version`: the `promptforge:` key declares a major version other than `0`, and the run ends on its first step ([The promptforge version](02-file-structure.md#the-promptforge-version)).
-- `RequirementsUnmet` at prepare: a required capability is missing or fails to activate, two declared capabilities conflict, a tool slot names a capability that contributed no tools, or a filled model fails a hard requirement, so prepare refuses the run before it starts, and the message is the requirements notice ([When a run cannot start](04-how-a-prompt-runs.md#when-a-run-cannot-start)).
+- `RequirementsUnmet` at prepare: a required Plugin is missing or fails to activate, two declared Plugins conflict, a tool slot names a Plugin that contributed no tools, or a filled model fails a hard requirement, so prepare refuses the run before it starts, and the message is the requirements notice ([When a run cannot start](04-how-a-prompt-runs.md#when-a-run-cannot-start)).
 
 ### Model, tool, and input failures
 
@@ -579,7 +579,7 @@ Nothing in this prompt ends the loop, and no limit does either. When the Host ca
 ### How a cancel reaches running Lua
 
 - Every 10,000 Lua instructions, running Lua checks the run's cancel flag. The check covers each section VM's main code and every block coroutine, so it reaches every block of every section, the H1 pass included. The Engine also checks the flag between steps.
-- Every section VM and every activated capability share the same cancel flag.
+- Every section VM and every activated Plugin share the same cancel flag.
 - Once the flag is set, the running block fails with the interrupted error: kind `cancelled`, message `interrupted by Ctrl-C` whatever the Host's actual trigger was, and no source location. It never appears as an ordinary Lua runtime error, and it wins over any error value the block had raised.
 - The cancel stops every block in the run, not only the first. After a cancel, a block with a bounded loop such as `for i = 1, 100000 do end` followed by `return "done"` never returns `done`.
 - A running `models.loop` stays cancellable, because the loop runs as Lua inside your block and the check keeps running while it does.

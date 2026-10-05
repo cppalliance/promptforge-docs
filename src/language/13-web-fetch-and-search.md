@@ -1,10 +1,10 @@
 # Web Fetch and Search
 
-Declare one capability and your prompt's model can read the live web: a fetch tool returns a page as clean markdown under a short header saying where the text came from, and a search tool returns results as JSON. Every fetch runs under a Harness-set policy that keeps its requests on the public internet, and neither tool needs a key, token, or address in your prompt. This chapter shows how to bind the two tools, what each call takes and returns, the limits and policy a fetch runs under, and the exact text a model or a script sees when a call fails.
+Declare one Plugin and your prompt's model can read the live web: a fetch tool returns a page as clean markdown under a short header saying where the text came from, and a search tool returns results as JSON. Every fetch runs under a Harness-set policy that keeps its requests on the public internet, and neither tool needs a key, token, or address in your prompt. This chapter shows how to bind the two tools, what each call takes and returns, the limits and policy a fetch runs under, and the exact text a model or a script sees when a call fails.
 
-## The web capability
+## The web Plugin
 
-To let the model fetch pages, declare the `promptforge/web` capability, bind an alias to the fetch tool, and put the alias in scope:
+To let the model fetch pages, declare the `promptforge/web` Plugin, bind an alias to the fetch tool, and put the alias in scope:
 
 ````markdown
 ---
@@ -13,7 +13,7 @@ description: Fetches a page and summarizes it
 promptforge: 0
 models:
   writer: {}
-capabilities: [promptforge/web]
+plugins: [promptforge/web]
 tools:
   fetch: promptforge/web/fetch
 ---
@@ -34,7 +34,7 @@ return msgs[#msgs].content
 ```
 ````
 
-The `capabilities:` line ([declaring capabilities](12-tools.md#declaring-capabilities)) activates exactly two tools as one pair: the fetch tool, at tool path `promptforge/web/fetch`, and the search tool, at tool path `promptforge/web/search`. Both tool paths sit under the capability id, so dropping a path's last segment gives back `promptforge/web` ([capability ids and tool paths](12-tools.md#capability-ids-and-tool-paths)).
+The `plugins:` line ([declaring Plugins](12-tools.md#declaring-plugins)) activates exactly two tools as one pair: the fetch tool, at tool path `promptforge/web/fetch`, and the search tool, at tool path `promptforge/web/search`. Both tool paths sit under the Plugin id, so dropping a path's last segment gives back `promptforge/web` ([Plugin ids and tool paths](12-tools.md#plugin-ids-and-tool-paths)).
 
 The `tools:` line `fetch: promptforge/web/fetch` is a tool slot that binds the prompt-local alias `fetch` to the exact tool path, and the model calls the tool by that alias ([tool slots and Tool objects](12-tools.md#tool-slots-and-tool-objects)). `tools.add('fetch')` puts the alias in scope for this section so the model can call it inside `models.loop`, while `tools.always` puts an alias in scope for every section ([advertising tools to the model](12-tools.md#advertising-tools-to-the-model)).
 
@@ -42,7 +42,7 @@ The rest of the block is the usual conversation: `models.default('writer')` sele
 
 The fetch tool fetches one web page with a GET request for a URL the model supplies and returns the page's main content as text the model can cite, as markdown for an HTML page. It enforces a safety policy, set by the Harness and not by the prompt, on every address it will reach, which keeps it from being turned against internal systems (server-side request forgery, or SSRF).
 
-Add the search tool the same way. This prompt binds both tools and writes the `capabilities:` value as a YAML list, which means the same as the bracketed form `capabilities: [promptforge/web]`:
+Add the search tool the same way. This prompt binds both tools and writes the `plugins:` value as a YAML list, which means the same as the bracketed form `plugins: [promptforge/web]`:
 
 ````markdown
 ---
@@ -51,7 +51,7 @@ description: Searches the web and summarizes the best sources
 promptforge: 0
 models:
   writer: {}
-capabilities:
+plugins:
   - promptforge/web
 tools:
   search: promptforge/web/search
@@ -76,16 +76,16 @@ return msgs[#msgs].content
 
 The search tool takes a search query and returns a list of search results. `tools.add({"search", "fetch"})` puts both aliases in scope at once, and the prose tells the model to search first and then fetch the best results.
 
-Neither tool takes a credential argument, and the prompt never supplies an API key, a gateway address, or a token. The Host registers `promptforge/web` and provides the search provider every search goes through, and the prompt only declares the capability id. Workshop's provider searches through its PromptForge gateway, so the prompt never touches a search provider credential and the provider's key never leaves the server.
+Neither tool takes a credential argument, and the prompt never supplies an API key, a gateway address, or a token. The Host registers `promptforge/web` and provides the search provider every search goes through, and the prompt only declares the Plugin id. Workshop's provider searches through its PromptForge gateway, so the prompt never touches a search provider credential and the provider's key never leaves the server.
 
-When the Host has not registered `promptforge/web`, prepare refuses the run before any section runs ([capability activation](04-how-a-prompt-runs.md#capability-activation)). The run error kind is `RequirementsUnmet` ([how a failed run is classified](16-limits-and-errors.md#how-a-failed-run-is-classified)), and the requirements notice reads:
+When the Host has not registered `promptforge/web`, prepare refuses the run before any section runs ([Plugin activation](04-how-a-prompt-runs.md#plugin-activation)). The run error kind is `RequirementsUnmet` ([how a failed run is classified](16-limits-and-errors.md#how-a-failed-run-is-classified)), and the requirements notice reads:
 
 ````text
 the environment cannot satisfy this prompt:
-- missing required capability: promptforge/web
+- missing required Plugin: promptforge/web
 ````
 
-When the Host registers the capability but provides no search provider, the notice names the missing service instead, as `- promptforge/web needs promptforge/search-provider, and this host provides none`.
+When the Host registers the Plugin but provides no search provider, the notice names the missing service instead, as `- promptforge/web needs promptforge/search-provider, and this host provides none`.
 
 ## Calling the fetch tool
 
@@ -96,7 +96,7 @@ The fetch tool has one required argument, `url`, a string holding the page addre
 name: fetch-page
 description: Fetches one page and returns it
 promptforge: 0
-capabilities: [promptforge/web]
+plugins: [promptforge/web]
 tools:
   fetch: promptforge/web/fetch
 ---
@@ -450,7 +450,7 @@ The search tool's only required argument is `query`, the search text:
 name: search-once
 description: Runs one web search and returns the results
 promptforge: 0
-capabilities: [promptforge/web]
+plugins: [promptforge/web]
 tools:
   search: promptforge/web/search
 ---
@@ -589,7 +589,7 @@ Each alias is also a Lua global holding the tool's Tool object ([tool slots and 
 name: page-tool
 description: Reads the Tool object for a fetch alias
 promptforge: 0
-capabilities: [promptforge/web]
+plugins: [promptforge/web]
 tools:
   page: promptforge/web/fetch
 ---

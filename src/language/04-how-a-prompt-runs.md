@@ -6,7 +6,7 @@ Every run of a prompt follows one fixed order, so you can read a prompt top to b
 
 A run is one execution of a prompt file. Every run goes through the same steps in the same order:
 
-1. Prepare. Before any Lua runs, the Harness sets up everything the prompt's frontmatter asks for and checks that it can provide it. [Capability activation](#capability-activation) and [Filling tool slots and model roles](#filling-tool-slots-and-model-roles) describe this step.
+1. Prepare. Before any Lua runs, the Harness sets up everything the prompt's frontmatter asks for and checks that it can provide it. [Plugin activation](#plugin-activation) and [Filling tool slots and model roles](#filling-tool-slots-and-model-roles) describe this step.
 2. The H1 pass. When the H1 body holds anything that runs, a `lua` block or prose, it runs once first, with the same access to the Harness as any section. [The H1 pass](#the-h1-pass) covers it. A prompt whose H1 body holds neither goes straight to its first section.
 3. The walk. The top-level `##` sections run top to bottom in file order, starting from the first one, and each one falls through to the next when it finishes. [The section walk](#the-section-walk) covers it.
 4. The outcome. The run ends completed with a result, cancelled, or failed.
@@ -469,57 +469,57 @@ Errors and reports from the H1 pass name the prompt's title as their section, wh
 
 Every part of a run follows the same fixed order. The H1 pass runs first: its section VM replays the shared library, runs the blocks in the H1 body, and is torn down. Then each `##` section on the walk runs in its own section VM: the section starts, the shared library replays, the prologue and the epilog run, the section VM is torn down, and the section finishes. The run succeeds after the last section. The replay step happens even when the prompt has no `lua shared` fence. The H1 pass reports no section start or finish of its own.
 
-## Capability activation
+## Plugin activation
 
-Prepare begins with capability activation. A prompt's `capabilities:` key lists the capabilities it needs, each a set of tools the Harness provides, named by a capability id such as `promptforge/web`; a plain entry is required, and an entry written with `optional: true` is optional ([Declaring capabilities](12-tools.md#declaring-capabilities)):
+Prepare begins with Plugin activation. A prompt's `plugins:` key lists the Plugins it needs, each a set of tools the Harness provides, named by a Plugin id such as `promptforge/web`; a plain entry is required, and an entry written with `optional: true` is optional ([Declaring Plugins](12-tools.md#declaring-plugins)):
 
 ````yaml
-capabilities:
+plugins:
   - promptforge/web
 ````
 
 ````yaml
-capabilities:
+plugins:
   - ref: promptforge/web
     optional: true
 ````
 
-Each declared capability activates exactly once per run, before the rest of prepare, in declaration order, and the tools it contributes join the run's available tools in that same order.
+Each declared Plugin activates exactly once per run, before the rest of prepare, in declaration order, and the tools it contributes join the run's available tools in that same order.
 
-A required capability must be present in the Harness and must actually start. When one is absent, or present but fails to activate, the run is refused before it starts with run error kind `RequirementsUnmet`. The requirements notice names each missing capability by its capability id on its own line, `- missing required capability: {id}`:
-
-````text
-the environment cannot satisfy this prompt:
-- missing required capability: promptforge/web
-````
-
-When a required capability fails to start, the Harness also logs a line naming it. That line is the Harness's own log, not a checkpoint from the prompt.
-
-An optional capability is one the prompt can run without. When the Harness lacks it, the Harness logs a line naming it, skips it, and the run continues. When it is present but fails to start, it contributes no tools, the run continues, and the failure shows up only in the Harness's log line.
-
-Declare only capabilities that can activate together. The capabilities themselves declare which others they conflict with, so which pairs conflict depends on the capabilities your Harness provides; the `promptforge/web` capability conflicts with none. When two declared capabilities conflict, the run is refused with run error kind `RequirementsUnmet` and the notice line `- conflicting capabilities: {first} and {second} cannot be activated together; declare one or the other`, where `{first}` is the one declared earlier. For a Harness whose `acme/bashkit` and `acme/terminal` capabilities conflict, a prompt that declares `acme/bashkit` first gets this notice:
+A required Plugin must be present in the Harness and must actually start. When one is absent, or present but fails to activate, the run is refused before it starts with run error kind `RequirementsUnmet`. The requirements notice names each missing Plugin by its Plugin id on its own line, `- missing required Plugin: {id}`:
 
 ````text
 the environment cannot satisfy this prompt:
-- conflicting capabilities: acme/bashkit and acme/terminal cannot be activated together; declare one or the other
+- missing required Plugin: promptforge/web
 ````
 
-Conflict detection works both ways and applies to the whole pair. The conflict is found whichever of the two capabilities declares it, it is reported once, naming both in declaration order, and neither capability of the pair activates or contributes tools.
+When a required Plugin fails to start, the Harness also logs a line naming it. That line is the Harness's own log, not a checkpoint from the prompt.
+
+An optional Plugin is one the prompt can run without. When the Harness lacks it, the Harness logs a line naming it, skips it, and the run continues. When it is present but fails to start, it contributes no tools, the run continues, and the failure shows up only in the Harness's log line.
+
+Declare only Plugins that can activate together. The Plugins themselves declare which others they conflict with, so which pairs conflict depends on the Plugins your Harness provides; the `promptforge/web` Plugin conflicts with none. When two declared Plugins conflict, the run is refused with run error kind `RequirementsUnmet` and the notice line `- conflicting Plugins: {first} and {second} cannot be activated together; declare one or the other`, where `{first}` is the one declared earlier. For a Harness whose `acme/bashkit` and `acme/terminal` Plugins conflict, a prompt that declares `acme/bashkit` first gets this notice:
+
+````text
+the environment cannot satisfy this prompt:
+- conflicting Plugins: acme/bashkit and acme/terminal cannot be activated together; declare one or the other
+````
+
+Conflict detection works both ways and applies to the whole pair. The conflict is found whichever of the two Plugins declares it, it is reported once, naming both in declaration order, and neither Plugin of the pair activates or contributes tools.
 
 ## Filling tool slots and model roles
 
-After activation, prepare fills the prompt's tool slots and model roles with what the Harness has, and checks each one. A `tools:` entry is a tool slot: an alias the prompt uses, mapped to a tool path such as `promptforge/web/fetch`, whose first two segments name the capability that contributes it ([Tool slots and Tool objects](12-tools.md#tool-slots-and-tool-objects)). A `models:` entry is a model role, and its `keywords` and `min_context` state what the role needs from its model ([Keywords and the thinking switch](10-models.md#keywords-and-the-thinking-switch)). Once filled, a slot or role is bound.
+After activation, prepare fills the prompt's tool slots and model roles with what the Harness has, and checks each one. A `tools:` entry is a tool slot: an alias the prompt uses, mapped to a tool path such as `promptforge/web/fetch`, whose first two segments name the Plugin that contributes it ([Tool slots and Tool objects](12-tools.md#tool-slots-and-tool-objects)). A `models:` entry is a model role, and its `keywords` and `min_context` state what the role needs from its model ([Keywords and the thinking switch](10-models.md#keywords-and-the-thinking-switch)). Once filled, a slot or role is bound.
 
 The bindings come only from the frontmatter, never from Lua. They are made once, before the run starts, and stay fixed for the whole run. Every section, the H1 pass included, sees the same bound tools and models, and Lua only chooses among them.
 
 ### Tool slots
 
-A tool slot whose tool path names a capability that contributed no tools refuses the run before it starts, with run error kind `RequirementsUnmet`. The notice line `- missing required capability: {capability}` names the capability part of the tool path, so the slot `fetch: promptforge/web/fetch` names `promptforge/web`. Here the slot's capability is not declared at all:
+A tool slot whose tool path names a Plugin that contributed no tools refuses the run before it starts, with run error kind `RequirementsUnmet`. The notice line `- missing required Plugin: {id}` names the Plugin part of the tool path, so the slot `fetch: promptforge/web/fetch` names `promptforge/web`. Here the slot's Plugin is not declared at all:
 
 ````markdown
 ---
 name: orphan-slot
-description: Binds a tool whose capability is not declared
+description: Binds a tool whose Plugin is not declared
 promptforge: 0
 tools:
   fetch: promptforge/web/fetch
@@ -538,12 +538,12 @@ Its outcome is failed, with run error kind `RequirementsUnmet` and exactly this 
 
 ````text
 the environment cannot satisfy this prompt:
-- missing required capability: promptforge/web
+- missing required Plugin: promptforge/web
 ````
 
-When several slots share one missing capability, the notice names it only once. Slots are checked in sorted alias order, so each missing capability appears where its first slot falls in that order.
+When several slots share one missing Plugin, the notice names it only once. Slots are checked in sorted alias order, so each missing Plugin appears where its first slot falls in that order.
 
-A slot whose capability is active but contributed no tool at that path is a different case. The capability is not missing, so the run starts: the slot stays unbound, and the Harness logs a warning. The slot fails only when a section tries to offer that alias to the model, with the message `tools.add alias "{alias}" is not a bound tool slot`, for example `tools.add alias "search" is not a bound tool slot`.
+A slot whose Plugin is active but contributed no tool at that path is a different case. The Plugin is not missing, so the run starts: the slot stays unbound, and the Harness logs a warning. The slot fails only when a section tries to offer that alias to the model, with the message `tools.add alias "{alias}" is not a bound tool slot`, for example `tools.add alias "search" is not a bound tool slot`.
 
 ### Model roles
 
@@ -597,7 +597,7 @@ done
 
 ### A prompt with no requirements
 
-A prompt that declares no capabilities, tool slots, or model roles, and never calls a model, runs as is, with nothing bound:
+A prompt that declares no Plugins, tool slots, or model roles, and never calls a model, runs as is, with nothing bound:
 
 ````markdown
 ---
@@ -611,31 +611,31 @@ promptforge: 0
 ## Only
 
 ```lua
-return 'no capabilities'
+return 'no Plugins'
 ```
 ````
 
 Its run result:
 
 ````text
-no capabilities
+no Plugins
 ````
 
 ## When a run cannot start
 
-When prepare finds any gap, the run is refused before any section runs, and its message is the requirements notice. The notice has a fixed layout: the header line `the environment cannot satisfy this prompt:`, then one line starting with `- ` for each gap. Missing capabilities come first, then capability conflicts, then unmet model role requirements:
+When prepare finds any gap, the run is refused before any section runs, and its message is the requirements notice. The notice has a fixed layout: the header line `the environment cannot satisfy this prompt:`, then one line starting with `- ` for each gap. Missing Plugins come first, then Plugin conflicts, then unmet model role requirements:
 
 ````text
 the environment cannot satisfy this prompt:
-- missing required capability: {id}
-- conflicting capabilities: {first} and {second} cannot be activated together; declare one or the other
+- missing required Plugin: {id}
+- conflicting Plugins: {first} and {second} cannot be activated together; declare one or the other
 - role '{label}': requires a context of at least {min} tokens; the current model provides {actual}
 - role '{label}': requires '{keyword}'; the current model's thinking capability is {capability}
 ````
 
-One refusal names every gap at once. The gaps found during capability activation and the gaps found while filling tool slots and model roles merge into one notice, and a capability that both steps report missing is listed only once. With no capabilities in the Harness, the `fetch: promptforge/web/fetch` slot from [Filling tool slots and model roles](#filling-tool-slots-and-model-roles) gives a one-line notice, even though both steps find `promptforge/web` missing.
+One refusal names every gap at once. The gaps found during Plugin activation and the gaps found while filling tool slots and model roles merge into one notice, and a Plugin that both steps report missing is listed only once. With no Plugins in the Harness, the `fetch: promptforge/web/fetch` slot from [Filling tool slots and model roles](#filling-tool-slots-and-model-roles) gives a one-line notice, even though both steps find `promptforge/web` missing.
 
-A prompt runs normally when every required capability is present, no two declared capabilities conflict, and every model role's requirements are met. The refusal happens only when at least one of those fails. The `analyst` prompt above runs to `done` on a 200000-token model whose thinking capability is `Always`.
+A prompt runs normally when every required Plugin is present, no two declared Plugins conflict, and every model role's requirements are met. The refusal happens only when at least one of those fails. The `analyst` prompt above runs to `done` on a 200000-token model whose thinking capability is `Always`.
 
 The run error kind `RequirementsUnmet` covers both ways a prompt's preconditions can fail: a requirement the Harness cannot satisfy, found at prepare, and an uncaught Lua error in the H1 pass, the [hard gate](#the-h1-pass). The message tells them apart: a refusal at prepare is the requirements notice, and a failed gate is the Lua error text. [How a failed run is classified](16-limits-and-errors.md#how-a-failed-run-is-classified) lists the other run error kinds.
 

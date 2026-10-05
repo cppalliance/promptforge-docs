@@ -236,12 +236,12 @@ The frontmatter recognizes exactly ten top-level keys. Only `name` and `descript
 | `max_tool_iterations` | optional | the default round cap | [The round cap](11-conversations.md#the-round-cap) |
 | `input` | optional | absent | [Input and output files](#input-and-output-files) |
 | `output` | optional | absent | [Input and output files](#input-and-output-files) |
-| `capabilities` | optional | no capabilities | [Declaring capabilities](12-tools.md#declaring-capabilities) |
+| `plugins` | optional | no Plugins | [Declaring Plugins](12-tools.md#declaring-plugins) |
 | `tools` | optional | no tool slots | [Tool slots and Tool objects](12-tools.md#tool-slots-and-tool-objects) |
 | `args` | optional | the default argument declaration | [Arg declarations](06-arguments.md#arg-declarations) |
 | `models` | optional | no model roles | [Declaring roles](10-models.md#declaring-roles) |
 
-A frontmatter of just `name: x` and `description: d` parses on that basis, with no capabilities, no tool slots, no model roles, and the default argument declaration. The last four rows are the contract keys; each links to the chapter that explains its entries.
+A frontmatter of just `name: x` and `description: d` parses on that basis, with no Plugins, no tool slots, no model roles, and the default argument declaration. The last four rows are the contract keys; each links to the chapter that explains its entries.
 
 A prompt file can be saved with or without a leading UTF-8 byte order mark, and with either LF (Unix) or CRLF (Windows) line endings. The byte order mark is dropped before the check for the opening `---` line, and `lua` and `lua shared` fence openings, fence closings, and the Lua code inside them treat CRLF exactly like LF.
 
@@ -253,27 +253,27 @@ invalid frontmatter: {detail}
 
 This form covers a YAML syntax slip, a value of the wrong type, a missing required key, an unknown key, and an out-of-range `max_tool_iterations`. When the YAML error has a position, the error reports it as a line and column counted from 1 at the top of the file, where the opening `---` is line 1, so a YAML slip on the fourth line of the file is reported at line 4. The error carries no prompt name, because the name is read from the frontmatter itself.
 
-Only the recognized keys are accepted, at every level. A misspelled or unknown key fails the parse instead of being ignored, and the message names the key. This holds at the top level, inside an `input:` or `output:` declaration, and inside a capability `ref:` entry, an arg entry, or a model role. For the top level and the file declarations, the detail names the key and then lists the keys that are accepted there:
+Only the recognized keys are accepted, at every level. A misspelled or unknown key fails the parse instead of being ignored, and the message names the key. This holds at the top level, inside an `input:` or `output:` declaration, and inside a Plugin `ref:` entry, an arg entry, or a model role. For the top level and the file declarations, the detail names the key and then lists the keys that are accepted there:
 
 ````text
 invalid frontmatter: unknown field `{key}`, expected one of ...
 ````
 
-Two more checks run once the YAML is read, and neither reports a line or column. A `capabilities:` list names each capability once ([Declaring capabilities](12-tools.md#declaring-capabilities)), and a tool slot never names a tool of a capability declared `optional: true`, because a tool slot requires its capability ([Tool slots and Tool objects](12-tools.md#tool-slots-and-tool-objects)):
+Two more checks run once the YAML is read, and neither reports a line or column. A `plugins:` list names each Plugin once ([Declaring Plugins](12-tools.md#declaring-plugins)), and a tool slot never names a tool of a Plugin declared `optional: true`, because a tool slot requires its Plugin ([Tool slots and Tool objects](12-tools.md#tool-slots-and-tool-objects)):
 
 ````text
-invalid frontmatter: capability {id} is declared more than once under capabilities
-invalid frontmatter: tool alias '{alias}' names {path}, whose capability {id} is declared optional; a tool slot requires its capability
+invalid frontmatter: Plugin {id} is declared more than once under plugins
+invalid frontmatter: tool alias '{alias}' names {path}, whose Plugin {id} is declared optional; a tool slot requires its Plugin
 ````
 
-The duplicate check runs first, so a capability declared twice that also backs a slot is reported as a duplicate.
+The duplicate check runs first, so a Plugin declared twice that also backs a slot is reported as a duplicate.
 
 ## Names for aliases, roles, and args
 
 Three of the contract keys are maps from a name to a declaration, and all three names follow one name grammar. The keys under `tools:` are tool aliases, the keys under `models:` are model role labels, and the keys under `args:` are arg names:
 
 ````yaml
-capabilities:
+plugins:
   - promptforge/web
 tools:
   search: promptforge/web/search
@@ -331,7 +331,7 @@ Every tool alias and every model role label becomes a bare Lua global of the sam
 - The Lua standard-library globals the sandbox keeps: `assert`, `error`, `getmetatable`, `ipairs`, `math`, `next`, `pairs`, `pcall`, `select`, `setmetatable`, `string`, `table`, `tonumber`, `tostring`, `type`, and `xpcall`, plus `_G` and `_VERSION`, which the name grammar already rules out.
 - The Lua 5.5 keywords: `and`, `break`, `do`, `else`, `elseif`, `end`, `false`, `for`, `function`, `global`, `goto`, `if`, `in`, `local`, `nil`, `not`, `or`, `repeat`, `return`, `then`, `true`, `until`, and `while`.
 
-These are exactly the globals of a section VM before any capability adds its own, together with the keywords. The match is exact and case-sensitive, so `Store`, `stores`, and `my_argv` are ordinary names. A reserved key fails the parse with parse error kind `Frontmatter`, reporting its line and column, and this detail:
+These are exactly the globals of a section VM before any Plugin adds its own, together with the keywords. The match is exact and case-sensitive, so `Store`, `stores`, and `my_argv` are ordinary names. A reserved key fails the parse with parse error kind `Frontmatter`, reporting its line and column, and this detail:
 
 ````text
 {kind} `{key}` in `{map}` is reserved ({category}): tool aliases and model role labels install as section VM globals, so none may take a reserved name
@@ -345,7 +345,7 @@ One name also cannot be both a tool alias and a model role label, because both w
 invalid frontmatter: `{name}` is both a tool alias in `tools` and a model role label in `models`; each installs as a section VM global of its own name, so the two must differ
 ````
 
-A declared capability can define globals of its own, such as the `input` table of `promptforge/user-input`. Those globals are known only once the capability's code runs, so an alias or label with the same name fails the run when its first section VM is set up, before the run does anything, as [Letting the model ask](05-lua-environment.md#letting-the-model-ask) shows.
+A declared Plugin can define globals of its own, such as the `input` table of `promptforge/user-input`. Those globals are known only once the Plugin's code runs, so an alias or label with the same name fails the run when its first section VM is set up, before the run does anything, as [Letting the model ask](05-lua-environment.md#letting-the-model-ask) shows.
 
 ## The H1 title and its content
 
